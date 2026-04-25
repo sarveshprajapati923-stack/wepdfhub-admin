@@ -3,25 +3,29 @@ const path = require("path");
 
 const app = express();
 
-// Middleware
 app.use(express.json());
+app.use(express.static("public"));
 
-// 🔐 Admin Home
-app.get("/", (req, res) => {
-  res.send("WePDFHub Admin Panel 🚀");
+// Dummy admin credentials
+const ADMIN = {
+  email: "admin@wepdfhub.com",
+  password: "123456"
+};
+
+// LOGIN API
+app.post("/api/login", (req, res) => {
+  const { email, password } = req.body;
+
+  if (email === ADMIN.email && password === ADMIN.password) {
+    return res.json({ success: true });
+  } else {
+    return res.json({ success: false, message: "Invalid credentials" });
+  }
 });
 
-// 🔐 Login Page (basic placeholder)
-app.get("/login", (req, res) => {
-  res.send(`
-    <h2>Admin Login</h2>
-    <p>Login system coming soon...</p>
-  `);
-});
-
-// ❌ Handle unknown routes
-app.use((req, res) => {
-  res.status(404).send("Page not found");
+// Protected dashboard route (basic)
+app.get("/dashboard", (req, res) => {
+  res.sendFile(path.join(__dirname, "public/dashboard.html"));
 });
 
 const PORT = process.env.PORT || 3000;
