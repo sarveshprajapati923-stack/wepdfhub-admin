@@ -5,6 +5,9 @@ const app = express();
 
 app.use(express.json());
 app.use(express.static("public"));
+app.get("/", (req, res) => {
+  res.redirect("/login.html");
+});
 
 // Dummy admin credentials
 const ADMIN = {
