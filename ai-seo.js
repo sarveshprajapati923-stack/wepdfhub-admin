@@ -11,19 +11,32 @@
 // CONFIG — APNI API KEY YAHAN PASTE KARO
 // ============================================================
 const SEO_CONFIG = {
-  openrouterKey: "YOUR_OPENROUTER_API_KEY", // ← openrouter.ai se lo
-  defaultModel:  "deepseek/deepseek-chat",
+  openrouterKey: "YOUR_OPENROUTER_API_KEY",
+  geminiKey:     "YOUR_GEMINI_API_KEY", // ← Google AI Studio se lo
+  apiProvider:   "gemini",              // "gemini" ya "openrouter"
+  defaultModel:  "gemini-2.0-flash",
   siteUrl:       "https://wepdfhub.click",
   siteName:      "WePDFHub"
 };
 
-const MODELS = [
-  { id: "deepseek/deepseek-chat",           label: "DeepSeek Chat (Fast)" },
-  { id: "qwen/qwen-2.5-72b-instruct",       label: "Qwen 2.5 72B" },
-  { id: "meta-llama/llama-3.3-70b-instruct",label: "Llama 3.3 70B" },
-  { id: "mistralai/mistral-7b-instruct",    label: "Mistral 7B" },
-  { id: "google/gemma-3-27b-it",            label: "Gemma 3 27B" }
+// OpenRouter models
+const OR_MODELS = [
+  { id: "deepseek/deepseek-chat",            label: "DeepSeek Chat (Fast)" },
+  { id: "qwen/qwen-2.5-72b-instruct",        label: "Qwen 2.5 72B" },
+  { id: "meta-llama/llama-3.3-70b-instruct", label: "Llama 3.3 70B" },
+  { id: "mistralai/mistral-7b-instruct",     label: "Mistral 7B" },
+  { id: "google/gemma-3-27b-it:free",        label: "Gemma 3 27B (Free)" }
 ];
+
+// Gemini models
+const GEMINI_MODELS = [
+  { id: "gemini-2.0-flash",         label: "Gemini 2.0 Flash (Fast ⚡)" },
+  { id: "gemini-2.0-flash-lite",    label: "Gemini 2.0 Flash Lite (Free 🆓)" },
+  { id: "gemini-1.5-flash",         label: "Gemini 1.5 Flash" },
+  { id: "gemini-1.5-pro",           label: "Gemini 1.5 Pro (Best 🏆)" },
+];
+
+const MODELS = [...GEMINI_MODELS, ...OR_MODELS];
 
 // ============================================================
 // STYLES INJECT
@@ -197,7 +210,7 @@ function injectPages() {
     <!-- GENERATE TAB -->
     <div class="seo-tab-pane active" id="blog-tab-generate">
       <div class="card">
-        <div class="ch"><div class="ct">✨ AI Blog Generator</div><span style="font-size:11px;color:var(--txt2)">OpenRouter API</span></div>
+        <div class="ch"><div class="ct">✨ AI Blog Generator</div><span style="font-size:11px;color:var(--txt2)">Gemini / OpenRouter API</span></div>
         <div class="cb">
           <div class="gen-form">
             <div style="display:flex;flex-direction:column;gap:4px">
@@ -434,13 +447,13 @@ function injectPages() {
   <!-- SEO SETTINGS -->
   <div class="seo-page" id="page-seo-settings">
     <div class="card">
-      <div class="ch"><div class="ct">⚙️ OpenRouter API Settings</div></div>
+      <div class="ch"><div class="ct">⚙️ AI API Settings (Gemini / OpenRouter)</div></div>
       <div class="cb">
         <div class="gen-form">
           <div style="grid-column:1/-1;display:flex;flex-direction:column;gap:4px">
-            <div class="gen-label">OpenRouter API Key 🔒</div>
-            <input type="password" class="gen-input" id="settApiKey" placeholder="sk-or-..." />
-            <div style="font-size:11px;color:var(--txt2);margin-top:3px">openrouter.ai pe account banao → API Keys → Create Key</div>
+            <div class="gen-label">API Key 🔒 (Gemini ya OpenRouter)</div>
+            <input type="password" class="gen-input" id="settApiKey" placeholder="Gemini: AIza... ya OpenRouter: sk-or-..." />
+            <div style="font-size:11px;color:var(--txt2);margin-top:3px">Gemini: aistudio.google.com → Get API Key (FREE!) | OpenRouter: openrouter.ai → API Keys</div>
           </div>
           <div style="display:flex;flex-direction:column;gap:4px">
             <div class="gen-label">Default Model</div>
@@ -536,12 +549,61 @@ window.SEO = {
   },
 
   // ---- API CALL ----
+  // Auto-detect: Gemini models → Gemini API, baaki → OpenRouter
   async callAI(prompt, model) {
+    const mdl = model || this.getConfig('model') || SEO_CONFIG.defaultModel;
+    const isGemini = mdl.startsWith('gemini');
+
+    if (isGemini) {
+      return await this.callGemini(prompt, mdl);
+    } else {
+      return await this.callOpenRouter(prompt, mdl);
+    }
+  },
+
+  // ---- GEMINI API ----
+  async callGemini(prompt, model) {
+    const key = this.getConfig('apiKey') || SEO_CONFIG.geminiKey;
+    if (!key || key === 'YOUR_GEMINI_API_KEY') {
+      throw new Error('Gemini API key set karo! SEO Settings → API Key. Google AI Studio: aistudio.google.com');
+    }
+    const tokens = parseInt(this.getConfig('tokens') || 4000);
+    const mdl = model || SEO_CONFIG.defaultModel;
+
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${mdl}:generateContent?key=${key}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { maxOutputTokens: tokens }
+        })
+      }
+    );
+
+    if (!res.ok) {
+      const err = await res.json().catch(()=>({error:{message:'Gemini API error'}}));
+      const msg = err.error?.message || `Gemini Error ${res.status}`;
+      // Helpful error messages
+      if (res.status === 400) throw new Error('Gemini: Invalid request. Model name check karo.');
+      if (res.status === 403) throw new Error('Gemini: API key invalid hai. aistudio.google.com se naya key lo.');
+      if (res.status === 429) throw new Error('Gemini: Rate limit! Thodi der baad try karo (free tier: 15 req/min).');
+      throw new Error(msg);
+    }
+
+    const data = await res.json();
+    this.apiCallCount++;
+    this.incrementApiCount();
+    return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  },
+
+  // ---- OPENROUTER API ----
+  async callOpenRouter(prompt, model) {
     const key = this.getConfig('apiKey') || SEO_CONFIG.openrouterKey;
     if (!key || key === 'YOUR_OPENROUTER_API_KEY') {
       throw new Error('OpenRouter API key set karo! SEO Settings → API Key');
     }
-    const mdl = model || this.getConfig('model') || SEO_CONFIG.defaultModel;
     const tokens = parseInt(this.getConfig('tokens') || 4000);
 
     const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -553,7 +615,7 @@ window.SEO = {
         'X-Title': SEO_CONFIG.siteName
       },
       body: JSON.stringify({
-        model: mdl,
+        model: model,
         max_tokens: tokens,
         messages: [{ role: 'user', content: prompt }]
       })
@@ -561,7 +623,7 @@ window.SEO = {
 
     if (!res.ok) {
       const err = await res.json().catch(()=>({error:{message:'API error'}}));
-      throw new Error(err.error?.message || `API Error ${res.status}`);
+      throw new Error(err.error?.message || `OpenRouter Error ${res.status}`);
     }
 
     const data = await res.json();
